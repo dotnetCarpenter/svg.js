@@ -481,6 +481,5 @@ window.requestAnimFrame = (function(){
   return  window.requestAnimationFrame       ||
           window.webkitRequestAnimationFrame ||
           window.mozRequestAnimationFrame    ||
-          window.msRequestAnimationFrame     ||
           function (c) { window.setTimeout(c, 1000 / 60) }
 })()
