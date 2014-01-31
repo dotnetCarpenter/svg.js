@@ -1,4 +1,4 @@
-/* svg.js v0.31 - svg regex default color array number viewbox bbox rbox element container fx event defs group arrange mask clip gradient use doc shape rect ellipse line poly path plotable image text textpath nested sugar set memory loader - svgjs.com/license */
+/* svg.js 0.32 - svg regex default color array number viewbox bbox rbox element container fx event defs group arrange mask clip gradient use doc shape rect ellipse line poly path plotable image text textpath nested sugar set memory loader - svgjs.com/license */
 ;(function() {
 
   this.SVG = function(element) {
@@ -1212,6 +1212,29 @@
     this.target = element
   }
   
+  
+  // requireAnimationFrame (raf) support
+  SVG.requestRaf = (function() {
+    var rraf = window.requestAnimationFrame ||
+      window.webkitRequestAnimationFrame ||
+      window.mozRequestAnimationFrame    ||
+      window.msRequestAnimationFrame     ||                  
+      function( callback ){
+        return window.setTimeout(callback, 1000 / 60);
+      }
+    return function(fn) { return rraf.call(window, fn) }
+  })(),
+  SVG.cancelRaf = (function() {
+    var craf = window.cancelAnimationFrame ||
+      window.webkitCancelAnimationFrame ||
+      window.mozCancelAnimationFrame    ||
+      window.msCancelAnimationFrame     ||
+      function( id ){
+        return window.clearTimeout(id);
+      }
+    return function(fn) { return craf.call(window, fn) }
+  })()
+  
   //
   SVG.extend(SVG.FX, {
     // Add animation parameters and start animation
@@ -1219,6 +1242,7 @@
       var akeys, tkeys, skeys, key
         , element = this.target
         , fx = this
+        , rafId
       
       /* dissect object if one is passed */
       if (typeof d == 'object') {
@@ -1360,14 +1384,25 @@
             // This code was borrowed from the emile.js micro framework by Thomas Fuchs, aka MadRobby.
             var time = new Date().getTime()
               , pos = time > finish ? 1 : (time - start) / d
-    
-            /* process values */
-            fx.to(pos)
+  
+            // cancel last draw call if it has not been made yet
+              if(rafId)
+                cancelAnimationFrame(rafId)
+  
+              // only update if we can draw
+              rafId = SVG.requestRaf( function() {
+                /* process values */
+                fx.to(pos)
+                rafId = 0
+              })
     
             /* finish off animation */
             if (time > finish) {
               if (fx._plot)
                 element.plot(new SVG.PointArray(fx._plot.destination).settle())
+  
+              // cancel any draw call before halting the animation or running the next instruction
+              SVG.cancelRaf(rafId)
   
               clearInterval(fx.interval)
               fx._after ? fx._after.apply(element, [fx]) : fx.stop()
