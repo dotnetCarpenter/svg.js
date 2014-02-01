@@ -1,4 +1,4 @@
-/* svg.js v1.0rc1-4-gf6fc666 - svg regex default color array pointarray patharray arraycache number viewbox bbox rbox element parent container fx relative event defs group arrange mask clip gradient doc shape use rect ellipse line poly path image text textpath nested hyperlink sugar set data memory loader - svgjs.com/license */
+/* svg.js v1.0rc2-11-ga19bbab - svg regex default color array pointarray patharray number viewbox bbox rbox element parent container fx relative event defs group arrange mask clip gradient doc shape use rect ellipse line poly path image text textpath nested hyperlink sugar set data memory loader - svgjs.com/license */
 ;(function() {
 
   this.SVG = function(element) {
@@ -255,6 +255,27 @@
            + (this.g / 255 * 0.59)
            + (this.b / 255 * 0.11)
     }
+    // Make color morphable
+  , morph: function(color) {
+      this.destination = new SVG.Color(color)
+  
+      return this
+    }
+    // Get morphed color at given position
+  , at: function(pos) {
+      /* make sure a destination is defined */
+      if (!this.destination) return this
+  
+      /* normalise pos */
+      pos = pos < 0 ? 0 : pos > 1 ? 1 : pos
+  
+      /* generate morphed color */
+      return new SVG.Color({
+        r: ~~(this.r + (this.destination.r - this.r) * pos)
+      , g: ~~(this.g + (this.destination.g - this.g) * pos)
+      , b: ~~(this.b + (this.destination.b - this.b) * pos)
+      })
+    }
     // Private: ensure to six-based hex 
   , _fullHex: function(hex) {
       return hex.length == 4 ?
@@ -282,6 +303,13 @@
   // Test if given value is a rgb object
   SVG.Color.isRgb = function(color) {
     return color && typeof color.r == 'number'
+                 && typeof color.g == 'number'
+                 && typeof color.b == 'number'
+  }
+  
+  // Test if given value is a color
+  SVG.Color.isColor = function(color) {
+    return SVG.Color.isRgb(color) || SVG.Color.test(color)
   }
 
   SVG.Array = function(array, fallback) {
@@ -742,21 +770,6 @@
   
   })
 
-  SVG.extend(SVG.PointArray, SVG.PathArray, {
-  	// Cache bbox
-    cache: function() {
-  		this._cachedBBox = this.uncache().bbox()
-  
-  		return this
-    }
-    // Remove cache
-  , uncache: function() {
-  		delete this._cachedBBox
-  		return this
-  	}
-  
-  })
-
   SVG.Number = function(value) {
   
     /* initialize defaults */
@@ -803,13 +816,6 @@
     valueOf: function() {
       return this.value
     }
-    // Convert to different unit
-  , to: function(unit) {
-      if (typeof unit === 'string')
-        this.unit = unit
-  
-      return this
-    }
     // Add number
   , plus: function(number) {
       this.value = this + new SVG.Number(number)
@@ -831,6 +837,30 @@
       this.value = this / new SVG.Number(number)
   
       return this
+    }
+    // Convert to different unit
+  , to: function(unit) {
+      if (typeof unit === 'string')
+        this.unit = unit
+  
+      return this
+    }
+    // Make number morphable
+  , morph: function(number) {
+      this.destination = new SVG.Number(number)
+  
+      return this
+    }
+    // Get morphed number at given position
+  , at: function(pos) {
+      /* make sure a destination is defined */
+      if (!this.destination) return this
+  
+      /* generate morphed number */
+      return new SVG.Number(this.destination)
+          .minus(this)
+          .times(pos)
+          .plus(this)
     }
   
   })
@@ -1065,11 +1095,11 @@
     }
     // Move by center over x-axis
   , cx: function(x) {
-      return x == null ? this.bbox().cx : this.x(x - this.bbox().width / 2)
+      return x == null ? this.x() + this.width() / 2 : this.x(x - this.width() / 2)
     }
     // Move by center over y-axis
   , cy: function(y) {
-      return y == null ? this.bbox().cy : this.y(y - this.bbox().height / 2)
+      return y == null ? this.y() + this.height() / 2 : this.y(y - this.height() / 2)
     }
     // Move element to given x and y values
   , move: function(x, y) {
@@ -1466,10 +1496,8 @@
         i = i == null ? this.children().length : i
         
         /* remove references from previous parent */
-        if (element.parent) {
-          var index = element.parent.children().indexOf(element)
-          element.parent.children().splice(index, 1)
-        }
+        if (element.parent)
+          element.parent.children().splice(element.parent.index(element), 1)
         
         /* add element references */
         this.children().splice(i, 0, element)
@@ -1492,7 +1520,11 @@
     }
     // Checks if the given element is a child
   , has: function(element) {
-      return this.children().indexOf(element) >= 0
+      return this.index(element) >= 0
+    }
+    // Gets index of given element
+  , index: function(element) {
+      return this.children().indexOf(element)
     }
     // Get a element at the given index
   , get: function(i) {
@@ -1523,9 +1555,7 @@
     }
     // Remove a child element at a position
   , removeElement: function(element) {
-      var i = this.children().indexOf(element)
-  
-      this.children().splice(i, 1)
+      this.children().splice(this.index(element), 1)
       this.node.removeChild(element.node)
       element.parent = null
       
@@ -1579,7 +1609,6 @@
     this.target = element
   }
   
-  //
   SVG.extend(SVG.FX, {
     // Add animation parameters and start animation
     animate: function(d, ease, delay) {
@@ -1612,10 +1641,10 @@
             akeys.push(key)
   
           /* make sure morphable elements are scaled, translated and morphed all together */
-          if (element.morphArray && akeys.indexOf('points') > -1) {
+          if (element.morphArray && (fx._plot || akeys.indexOf('points') > -1)) {
             /* get destination */
             var box
-              , p = new element.morphArray(fx._plot || element.array)
+              , p = new element.morphArray(fx._plot || fx.attrs.points || element.array)
   
             /* add size */
             if (fx._size) p.size(fx._size.width.to, fx._size.height.to)
@@ -1672,54 +1701,48 @@
           element.plot(fx._plot.at(pos))
   
         } else {
-          if (element.array)
-            element.array.cache()
-  
           /* run all x-position properties */
           if (fx._x)
-            element.x(fx._at(fx._x, pos))
+            element.x(at(fx._x, pos))
           else if (fx._cx)
-            element.cx(fx._at(fx._cx, pos))
+            element.cx(at(fx._cx, pos))
   
           /* run all y-position properties */
           if (fx._y)
-            element.y(fx._at(fx._y, pos))
+            element.y(at(fx._y, pos))
           else if (fx._cy)
-            element.cy(fx._at(fx._cy, pos))
+            element.cy(at(fx._cy, pos))
   
           /* run all size properties */
           if (fx._size)
-            element.size(fx._at(fx._size.width, pos), fx._at(fx._size.height, pos))
-  
-          if (element.array)
-            element.array.uncache()
+            element.size(at(fx._size.width, pos), at(fx._size.height, pos))
         }
   
         /* run all viewbox properties */
         if (fx._viewbox)
           element.viewbox(
-            fx._at(fx._viewbox.x, pos)
-          , fx._at(fx._viewbox.y, pos)
-          , fx._at(fx._viewbox.width, pos)
-          , fx._at(fx._viewbox.height, pos)
+            at(fx._viewbox.x, pos)
+          , at(fx._viewbox.y, pos)
+          , at(fx._viewbox.width, pos)
+          , at(fx._viewbox.height, pos)
           )
   
         /* animate attributes */
         for (i = akeys.length - 1; i >= 0; i--)
-          element.attr(akeys[i], fx._at(fx.attrs[akeys[i]], pos))
+          element.attr(akeys[i], at(fx.attrs[akeys[i]], pos))
   
         /* animate transformations */
         for (i = tkeys.length - 1; i >= 0; i--)
-          element.transform(tkeys[i], fx._at(fx.trans[tkeys[i]], pos))
+          element.transform(tkeys[i], at(fx.trans[tkeys[i]], pos))
   
         /* animate styles */
         for (i = skeys.length - 1; i >= 0; i--)
-          element.style(skeys[i], fx._at(fx.styles[skeys[i]], pos))
+          element.style(skeys[i], at(fx.styles[skeys[i]], pos))
   
         /* callback for each keyframe */
         if (fx._during)
           fx._during.call(element, pos, function(from, to) {
-            return fx._at({ from: from, to: to }, pos)
+            return at({ from: from, to: to }, pos)
           })
       }
       
@@ -1783,13 +1806,20 @@
       return this.target.bbox()
     }
     // Add animatable attributes
-  , attr: function(a, v, n) {
-      if (typeof a == 'object')
+  , attr: function(a, v) {
+      if (typeof a == 'object') {
         for (var key in a)
           this.attr(key, a[key])
       
-      else
-        this.attrs[a] = { from: this.target.attr(a), to: v }
+      } else {
+        var from = this.target.attr(a)
+  
+        this.attrs[a] = SVG.Color.isColor(from) ?
+          new SVG.Color(from).morph(v) :
+        SVG.regex.unit.test(from) ?
+          new SVG.Number(from).morph(v) :
+          { from: from, to: v }
+      }
       
       return this
     }
@@ -1972,50 +2002,9 @@
   
       return this
     }
-    // Private: calculate position according to from and to
-  , _at: function(o, pos) {
-      /* number recalculation */
-      return typeof o.from == 'number' ?
-        o.from + (o.to - o.from) * pos :
-      
-      /* unit recalculation */
-      SVG.regex.unit.test(o.to) ?
-        new SVG.Number(o.to)
-          .minus(new SVG.Number(o.from))
-          .times(pos)
-          .plus(new SVG.Number(o.from)) :
-      
-      /* color recalculation */
-      o.to && (o.to.r || SVG.Color.test(o.to)) ?
-        this._color(o, pos) :
-      
-      /* for all other values wait until pos has reached 1 to return the final value */
-      pos < 1 ? o.from : o.to
-    }
-    // Private: tween color
-  , _color: function(o, pos) {
-      var from, to
-      
-      /* normalise pos */
-      pos = pos < 0 ? 0 : pos > 1 ? 1 : pos
-      
-      /* convert FROM */
-      from = new SVG.Color(o.from)
-      
-      /* convert TO hex to rgb */
-      to = new SVG.Color(o.to)
-      
-      /* tween color and return hex */
-      return new SVG.Color({
-        r: ~~(from.r + (to.r - from.r) * pos)
-      , g: ~~(from.g + (to.g - from.g) * pos)
-      , b: ~~(from.b + (to.b - from.b) * pos)
-      }).toHex()
-    }
     
   })
   
-  //
   SVG.extend(SVG.Element, {
     // Get fx module or create a new one, then animate with given duration and ease
     animate: function(d, ease, delay) {
@@ -2042,15 +2031,21 @@
   
       return this
     }
-  
     
   })
-  // Usage:
   
-  //     rect.animate(1500, '>').move(200, 300).after(function() {
-  //       this.fill({ color: '#f06' })
-  //     })
-  
+  // Calculate position according to from and to
+  function at(o, pos) {
+    /* number recalculation (don't bother converting to SVG.Number for performance reasons) */
+    return typeof o.from == 'number' ?
+      o.from + (o.to - o.from) * pos :
+    
+    /* instance recalculation */
+    o instanceof SVG.Color || o instanceof SVG.Number ? o.at(pos) :
+    
+    /* for all other values wait until pos has reached 1 to return the final value */
+    pos < 1 ? o.from : o.to
+  }
   
   // Shim layer with setTimeout fallback by Paul Irish
   window.requestAnimFrame = (function(){
@@ -2167,6 +2162,15 @@
   , y: function(y) {
       return y == null ? this.trans.y : this.transform('y', y)
     }
+    // Move by center over x-axis
+  , cx: function(x) {
+      return x == null ? this.bbox().cx : this.x(x - this.bbox().width / 2)
+    }
+    // Move by center over y-axis
+  , cy: function(y) {
+      return y == null ? this.bbox().cy : this.y(y - this.bbox().height / 2)
+    }
+    
   })
   
   //
@@ -2185,9 +2189,7 @@
     }
     // Get the curent position siblings
   , position: function() {
-      var siblings = this.siblings()
-  
-      return siblings.indexOf(this)
+      return this.parent.index(this)
     }
     // Get the next element (will return null if there is none)
   , next: function() {
@@ -3351,7 +3353,7 @@
     }
     // Remove element from set
   , remove: function(element) {
-      var i = this.members.indexOf(element)
+      var i = this.index(element)
       
       /* remove given child */
       if (i > -1)
@@ -3375,7 +3377,11 @@
     }
     // Checks if a given element is present in set
   , has: function(element) {
-      return this.members.indexOf(element) >= 0
+      return this.index(element) >= 0
+    }
+    // retuns index of given element in set
+  , index: function(element) {
+      return this.members.indexOf(element)
     }
     // Get member at given index
   , get: function(i) {

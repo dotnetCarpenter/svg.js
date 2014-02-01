@@ -1,6 +1,6 @@
 {
   "name": "svg.js",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0-rc2",
   "homepage": "http://svgjs.com/",
   "authors": [
     "Wout Fierens <wout@impinc.co.uk>"
@@ -8,7 +8,7 @@
   "description": "A lightweight library for manipulating and animating SVG.",
   "main": "dist/svg.js",
   "keywords": [
-    "svg"
+    "svg", "vector", "graphics"
   ],
   "license": "MIT",
   "ignore": [

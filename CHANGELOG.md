@@ -1,13 +1,19 @@
+# v1.0rc2 (01/02/2014)
+
+- added `index()` method to `SVG.Parent` and `SVG.Set`
+- modified `cx()` and `cy()` methods on elements with native `x`, `y`, `width` and `height` attributes for better performance
+- added `morph()` and `at()` methods to `SVG.Number` for unit morphing
+
 # v1.0rc1 (31/01/2014)
 
 - added `SVG.PathArray` for real path transformations
 - removed `unbiased` system for paths
-- added caching on `SVG.PointArray` and `SVG.PathArray` for animations
 - enabled proportional resizing on `size()` method with `null` for either `width` or `height` values
 - moved data module to separate file
 - `data()` method now accepts object for for multiple key / value assignments
 - added `bbox()` method to `SVG.Set`
 - added `relative()` method for moves relative to the current position
+- added `morph()` and `at()` methods to `SVG.Color` for color morphing
 
 # v0.38 (28/01/2014)
 
