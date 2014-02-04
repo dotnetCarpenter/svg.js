@@ -18,7 +18,7 @@ SVG.extend(SVG.FX, {
     }
 
     /* ensure default duration and easing */
-    d = d == null ? 1000 : d
+    d = d == null ? 1000 : new SVG.Number(d).valueOf()
     ease = ease || '<>'
 
     /* process values */
@@ -190,7 +190,7 @@ SVG.extend(SVG.FX, {
         /* start animation */
         fx.render()
         
-      }, delay || 0)
+      }, new SVG.Number(delay).valueOf())
     }
     
     return this
